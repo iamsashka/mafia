@@ -11,9 +11,10 @@ class Player {
 private:
     Role role;
     bool alive;
-    bool protectedByDoctor; 
+    bool protectedByDoctor;
+
 public:
-    Player(Role r) : role(r), alive(true) {}
+    Player(Role r) : role(r), alive(true), protectedByDoctor(false) {}
 
     Role getRole() const {
         return role;
@@ -24,12 +25,19 @@ public:
     }
 
     void kill() {
-        alive = false;
+        if (!protectedByDoctor) {
+            alive = false;
+        }
+        else {
+            std::cout << "Мафия не может убить игрока, потому что он защищен доктором.\n";
+            protectedByDoctor = false; // защита снята после неудачной попытки убийства
+        }
     }
 
     void revive() {
         alive = true;
     }
+
     void heal() {
         protectedByDoctor = true;
     }
@@ -79,9 +87,7 @@ public:
         }
     }
 
-
     void mafiaTurn() {
-        
         std::this_thread::sleep_for(std::chrono::seconds(2));
         std::cout << "Мафия просыпается...\n";
 
@@ -107,7 +113,6 @@ public:
 
             // Удаляем выбранного игрока из вектора
             players.erase(players.begin() + target);
-            std::cout << "Мафия не может убить игрока, потому что он защищен доктором.\n";
         }
         else {
             // Выбор игрока на рандом для других ролей
@@ -118,7 +123,8 @@ public:
             int target = dis(gen);
             while (!players[target].isAlive() || players[target].getRole() == MAFIA) {
                 target = dis(gen);
-            }std::cout << "Мафия выбирает игрока " << target + 1 << " для убийства.\n";
+            }
+            std::cout << "Мафия выбирает игрока " << target + 1 << " для убийства.\n";
 
             // Добавляем убитого игрока в вектор мафией убитых игроков
             mafiaKilledPlayers.push_back(target);
@@ -129,6 +135,7 @@ public:
 
         std::cout << "Мафия засыпает...\n";
     }
+
     void doctorTurn() {
         std::cout << "Доктор просыпается...\n";
         // Логика доктора: он может выбрать игрока для лечения, чтобы предотвратить убийство в этот ход
@@ -159,7 +166,7 @@ public:
             }
             std::cout << "Доктор выбирает игрока " << target + 1 << " для лечения.\n";
             // Здесь можно добавить логику лечения игрока, например, устанавливаем флаг, что игрок защищен
-            //protectedPlayers.push_back(target);
+            // protectedPlayers.push_back(target);
 
             // Удаляем выбранного игрока из вектора
             // players.erase(players.begin() + target);
@@ -227,7 +234,6 @@ public:
         std::cout << "Детектив засыпает...\n";
     }
 
-
     void vote() {
         // Просто заглушка, можно добавить реальную логику голосования
         std::cout << "Голосование...\n";
@@ -251,7 +257,6 @@ public:
         }
 
         int targetIndex; // Объявляем переменную targetIndex здесь
-
 
         // Если текущий игрок не мафия, то он может проголосовать
         std::cout << "Выберите номер игрока, за которого хотите проголосовать: ";
@@ -279,7 +284,9 @@ public:
             std::cout << "Вы уже проголосовали за этого игрока. Выберите другого.\n";
             vote(); // Повторяем голосование
             return;
-        }std::cout << "Игрок " << voteIndex + 1 << " выбран для голосования.\n";
+        }
+
+        std::cout << "Игрок " << voteIndex + 1 << " выбран для голосования.\n";
         targetIndex = voteIndex; // Присваиваем значение voteIndex переменной targetIndex
 
         // Удаляем выбранного игрока из вектора участников голосования
@@ -289,7 +296,6 @@ public:
         // Убиваем выбранного игрока
         players[targetIndex].kill();
     }
-
 
     void play() {
         bool mafiaWon = false;
@@ -324,7 +330,7 @@ public:
                 mafiaWon = true;
             }
 
-            if (mafiaAlive == 1 && (mafiaAlive + otherRolesAlive) == 2) {
+            if (mafiaAlive == 0) {
                 civiliansWon = true;
             }
         }
@@ -336,8 +342,6 @@ public:
             std::cout << "Победили мирные жители!\n";
         }
     }
-
-    
 };
 
 int main() {
