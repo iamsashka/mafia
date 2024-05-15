@@ -11,9 +11,9 @@ private:
     Role role;
     bool alive;
     bool protectedByDoctor;
-    bool killedByMafia;
+    bool markedForDeath;
 public:
-    Player(Role r) : role(r), alive(true), protectedByDoctor(false), killedByMafia(false) {}
+    Player(Role r) : role(r), alive(true), protectedByDoctor(false), markedForDeath(false) {}
 
     Role getRole() const {
         return role;
@@ -23,37 +23,46 @@ public:
         return alive;
     }
 
-    bool isKilledByMafia() const {
-        return killedByMafia;
+    bool isMarkedForDeath() const {
+        return markedForDeath;
     }
 
-    void kill(bool byMafia = false) {
+    void markForDeath() {
+        markedForDeath = true;
+    }
+
+    void kill() {
         if (!protectedByDoctor) {
             alive = false;
-            if (byMafia) {
-                killedByMafia = true;
-            }
         }
-        protectedByDoctor = false; // Сбрасываем защиту доктора после каждой ночи
+        markedForDeath = false;
     }
 
-    void heal() {
+    void protect() {
         protectedByDoctor = true;
-        killedByMafia = false; // Сбрасываем флаг "убит мафией" если доктор лечит
+    }
+
+    void resetProtection() {
+        protectedByDoctor = false;
+    }
+
+    void resetDeathMark() {
+        markedForDeath = false;
     }
 };
 
 class Game {
 private:
+
     std::vector<Player> players;
     int mafiaCount;
     int civilianCount;
-    bool detectedMafia; // флаг для отслеживания выявленной мафии детективом
+    bool detectedMafia;
 
 public:
     Game(int playerCount) : detectedMafia(false) {
         mafiaCount = 1;
-        civilianCount = playerCount - mafiaCount - 2; // Вычитаем 2 места для доктора и детектива
+        civilianCount = playerCount - mafiaCount - 2;
 
         for (int i = 0; i < playerCount; ++i) {
             if (i < mafiaCount)
@@ -91,7 +100,7 @@ public:
         std::cout << "Выберите номер игрока для убийства: ";
         int target;
         std::cin >> target;
-        target--; // Пользователь вводит номер с 1, а индексы начинаются с 0
+        target--;
 
         if (target < 0 || target >= players.size() || players[target].getRole() == MAFIA || !players[target].isAlive()) {
             std::cout << "Неверный выбор, повторите еще раз.\n";
@@ -100,28 +109,26 @@ public:
         }
 
         std::cout << "Мафия выбирает игрока " << target + 1 << " для убийства.\n";
-        players[target].kill(true);
+        players[target].markForDeath();
         std::cout << "Мафия засыпает...\n";
     }
 
     void doctorTurn() {
         std::cout << "Доктор просыпается...\n";
-        // Логика доктора: он может выбрать игрока для лечения, чтобы предотвратить убийство в этот ход
-        if (players[0].getRole() == DOCTOR) {
-            std::cout << "Выберите номер игрока для лечения: ";
-            int target;
-            std::cin >> target;
-            target--; // Пользователь вводит номер с 1, а индексы начинаются с 0
+        std::cout << "Выберите номер игрока для лечения: ";
+        int target;
+        std::cin >> target;
+        target--;
 
-            if (target < 0 || target >= players.size() || !players[target].isAlive()) {
-                std::cout << "Неверный выбор, повторите еще раз.\n";
-                doctorTurn(); // Повторяем ход доктора
-                return;
-            }
-
-            std::cout << "Доктор выбирает игрока " << target + 1 << " для лечения.\n";
-            players[target].heal();
+        if (target < 0 || target >= players.size() || !players[target].isAlive()) {
+            std::cout << "Неверный выбор, повторите еще раз.\n";
+            doctorTurn();
+            return;
         }
+
+        std::cout << "Доктор выбирает игрока " << target + 1 << " для лечения.\n";
+        players[target].protect();
+        std::cout << "Доктор засыпает...\n";
     }
 
     void detectiveTurn() {
@@ -129,7 +136,7 @@ public:
         std::cout << "Выберите номер игрока для расследования: ";
         int target;
         std::cin >> target;
-        target--; // Пользователь вводит номер с 1, а индексы начинаются с 0
+        target--;
 
         if (target < 0 || target >= players.size() || !players[target].isAlive()) {
             std::cout << "Неверный выбор, повторите еще раз.\n";
@@ -140,7 +147,7 @@ public:
         std::cout << "Детектив выбирает игрока " << target + 1 << " для расследования.\n";
         if (players[target].getRole() == MAFIA) {
             std::cout << "Роль игрока " << target + 1 << ": Мафия\n";
-            detectedMafia = true; // Ставим флаг, что мафия выявлена
+            detectedMafia = true;
         }
         else {
             std::cout << "Роль игрока " << target + 1 << ": Мирный житель\n";
@@ -148,22 +155,35 @@ public:
         std::cout << "Детектив засыпает...\n";
     }
 
+    void applyNightActions() {
+        for (auto& player : players) {
+            if (player.isMarkedForDeath()) {
+                player.kill();
+            }
+            player.resetProtection();
+            player.resetDeathMark();
+        }
+    }
+
     void vote() {
         std::cout << "Голосование...\n";
         std::vector<int> votes(players.size(), 0);
 
         for (int i = 0; i < players.size(); ++i) {
-            if (players[i].isAlive() && !players[i].isKilledByMafia()) {
-                std::cout << "Игрок " << i + 1 << ", выберите номер игрока для голосования: ";
-                int voteTarget;
-                std::cin >> voteTarget;
-                voteTarget--; // Пользователь вводит номер с 1, а индексы начинаются с 0
+            if (players[i].isAlive()) {
+                while (true) {
+                    std::cout << "Игрок " << i + 1 << ", выберите номер игрока для голосования: ";
+                    int voteTarget;
+                    std::cin >> voteTarget;
+                    voteTarget--;
 
-                if (voteTarget < 0 || voteTarget >= players.size() || !players[voteTarget].isAlive() || players[voteTarget].isKilledByMafia()) {
-                    std::cout << "Неверный выбор, голос не засчитан.\n";
-                }
-                else {
-                    votes[voteTarget]++;
+                    if (voteTarget < 0 || voteTarget >= players.size() || !players[voteTarget].isAlive()) {
+                        std::cout << "Неверный выбор, попробуйте еще раз.\n";
+                    }
+                    else {
+                        votes[voteTarget]++;
+                        break;
+                    }
                 }
             }
         }
@@ -175,10 +195,10 @@ public:
             if (votes[i] > maxVotes) {
                 maxVotes = votes[i];
                 playerToKill = i;
-                tie = false; // Сбрасываем флаг ничьи
+                tie = false;
             }
             else if (votes[i] == maxVotes) {
-                tie = true; // Если голоса равны, устанавливаем флаг ничьи
+                tie = true;
             }
         }
 
@@ -186,7 +206,7 @@ public:
             std::cout << "Игрок " << playerToKill + 1 << " получает наибольшее количество голосов и будет убит.\n";
             if (players[playerToKill].getRole() == MAFIA && detectedMafia) {
                 std::cout << "Игрок оказался мафией! Победили мирные жители!\n";
-                exit(0); // Завершаем игру победой мирных жителей
+                exit(0);
             }
             players[playerToKill].kill();
         }
@@ -194,7 +214,6 @@ public:
             std::cout << "Ничья в голосовании, никто не будет убит.\n";
         }
     }
-
 
     void play() {
         bool mafiaWon = false;
@@ -204,8 +223,8 @@ public:
             mafiaTurn();
             doctorTurn();
             detectiveTurn();
+            applyNightActions();
 
-            // Проверяем, выжил ли кто-то после ночи
             int alivePlayers = 0;
             for (const auto& player : players) {
                 if (player.isAlive()) {
@@ -214,7 +233,7 @@ public:
             }
 
             if (alivePlayers <= 1) {
-                break; // Игра завершена
+                break;
             }
 
             vote();
@@ -245,7 +264,6 @@ public:
                 civiliansWon = true;
             }
 
-            // Условие победы мафии при 3 оставшихся игроках
             if (alivePlayers == 3 && mafiaAlive > 0) {
                 mafiaWon = true;
             }
